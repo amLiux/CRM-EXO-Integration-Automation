@@ -1,20 +1,34 @@
 ﻿#CRM On prem integration EXCO
+#CRM-EXO-Integration-Automation
 [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
 
 
 #! *************************************** LOGIC ***************************************!#
 Function InitializingPSSession(){
-    Write-Host "Me estoy ejecutando"
-    Enable-PSRemoting -force
-    New-PSSession
-    Import-Module MSOnline -force
-    Import-Module MSOnlineExt -force
+    Write-Host "Me estoy ejecutando"  
+    Invoke-Expression -Command Enable-PSRemoting 
+    Invoke-Expression -Command New-PSSession
+}
+
+Function ImportingModules(){
+    Write-Host "Me estoy ejecutando x2"  
+    Import-Module MSOnline -Force
+    Import-Module MSOnlineExt -Force
 }
 
 Function GettingCredentials(){
-    Write-Host "Me estoy ejecutando"
+    Write-Host "Me estoy ejecutando x3"
     $msolcred = get-credential
     connect-msolservice -credential $msolcred
+}
+
+Function STSCertCreate($PrivateFinalPath, $Password, $PublicFinalPath){
+    $STSCertificate = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList $PrivateFinalPath, $Password
+    $PFXCertificateBin = $STSCertificate.GetRawCertData()
+    $Certificate = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+    $Certificate.Import(“$PublicFinalPath”)
+    $CERCertificateBin = $Certificate.GetRawCertData()
+    $CredentialValue = [System.Convert]::ToBase64String($CERCertificateBin)
 }
 
 
@@ -36,12 +50,14 @@ $Form = New-Object System.Windows.Forms.Form
 $Form2 = New-Object System.Windows.Forms.Form
     $Form2.Text = "Parameters for the Integration"
     #$Form2.Size = New-Object System.Drawing.Size(300,200)
-    $Form2.Height = 370
+    $Form2.Height = 470
     $Form2.Width = 420
     $Form2.TopMost = $true
     $Form2.StartPosition = 'CenterScreen'
     $Form2.FormBorderStyle = 3
 
+
+#* agregar label del root domain
 #! *************************************** LABELS ***************************************!#
 #label for path private cert selection Form #2
 $label1_Form2= New-Object System.Windows.Forms.Label
@@ -64,6 +80,13 @@ $label2_Form2= New-Object System.Windows.Forms.Label
     $label2_Form2.Text = 'Please enter the path for the .cer certificate:'
     $Form2.Controls.Add($label2_Form2)
 
+#label for root domain Form #2
+$label3_Form2= New-Object System.Windows.Forms.Label
+    $label3_Form2.Location = New-Object System.Drawing.Point(10,260)
+    $label3_Form2.Size = New-Object System.Drawing.Size(280,15)
+    $label3_Form2.Text = 'Please enter the root domain of the organization:'
+    $Form2.Controls.Add($label3_Form2)
+
 #label for form #1
 $label_Form = New-Object System.Windows.Forms.Label
     $label_Form.Location = New-Object System.Drawing.Size(8,8)
@@ -72,6 +95,7 @@ $label_Form = New-Object System.Windows.Forms.Label
     $label_Form.Text = "We will check if we have the right Azure modules installed"
     $Form.Controls.Add($label_Form)
 
+#* agregar input del root domain
 #! *************************************** INPUTS ***************************************!#
 $PathInput = New-Object System.Windows.Forms.TextBox
     $PathInput.Location = New-Object System.Drawing.Point(10,50)
@@ -88,6 +112,11 @@ $PubPathInput = New-Object System.Windows.Forms.TextBox
     $PubPathInput.Location = New-Object System.Drawing.Point(10,210)
     $PubPathInput.Size = New-Object System.Drawing.Size(260,40)
     $Form2.Controls.Add($PubPathInput)
+
+$RootInput = New-Object System.Windows.Forms.TextBox
+    $RootInput.Location = New-Object System.Drawing.Point(10,290)
+    $RootInput.Size = New-Object System.Drawing.Size(260,40)
+    $Form2.Controls.Add($RootInput)
 
 #! *************************************** BUTTONS ***************************************!#
 $Button = New-Object System.Windows.Forms.Button
@@ -185,7 +214,7 @@ $PubPathButton = New-Object System.Windows.Forms.Button
     $Form2.Controls.Add($PubPathButton)
 
 $Form2NextButton = New-Object System.Windows.Forms.Button
-    $Form2NextButton.Location = New-Object System.Drawing.Size(150, 290)
+    $Form2NextButton.Location = New-Object System.Drawing.Size(150, 370)
     $Form2NextButton.Size= New-Object System.Drawing.Size(100, 30)
     $Form2NextButton.TextAlign = "MiddleCenter"
     $Form2NextButton.Text = "Next"
@@ -211,11 +240,13 @@ $Form2NextButton = New-Object System.Windows.Forms.Button
 
         Try{
             #dot sources certificate reconfiguration and passes the parameters that were asked before
-            . ".\CertificateReconfiguration.ps1"  -certificateFile $PrivateFinalPath -password $Password -certificateType S2STokenIssuer -updateCrm -serviceAccount $ServiceAccount -storeFindType FindBySubjectDistinguishedName
+            # . ".\CertificateReconfiguration.ps1"  -certificateFile $PrivateFinalPath -password $Password -certificateType S2STokenIssuer -updateCrm -serviceAccount $ServiceAccount -storeFindType FindBySubjectDistinguishedName
             #---------------------------------------------------------------------------------
-
             InitializingPSSession 
+            ImportingModules
             GettingCredentials
+            STSCertCreate -PrivateFinalPath $PrivateFinalPath -Password $Password -PublicFinalPath $PublicFinalPath
+            
         }   
         Catch{
             $ErrorMessage = $_.Exception.Message
